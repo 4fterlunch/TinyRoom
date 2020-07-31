@@ -5,8 +5,12 @@ import {TinyRoom, ArtifactBundler} from "./components/TinyRoom";
 
 function App() {
   var bundle = ArtifactBundler();
-  for (var j = 0; j < 1000; j++)
-    bundle.pushPoint({x: Math.random()*15, y: Math.random()*10, z:1- Math.random()*15},"Poles",Math.random()*10**7, false, Math.random()/2);
+  bundle.pushPointZ(-1, 1, -1, "poles", "pole1");
+  bundle.pushPointZ(-3, 1, -1, "poles","pole2", 0x0000ff);
+  bundle.pushPointZ(-4, 1, -3, "poles","pole3", 0x0000ff);
+  bundle.pushPointZ(-5, 1, 2, "poles","pole4", 0x0000ff);
+  bundle.pushPointZ(-2, 2, -5,"camera","camera",0xff0000);
+  bundle.pushLinestringZ([-1, -2], [1, 2], [-1,-5]);
   return (
     <div className="App">
 

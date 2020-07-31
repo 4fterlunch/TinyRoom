@@ -1,3 +1,18 @@
+/**
+ * 
+ _______           ___                
+/_  __(_)__  __ __/ _ \___  ___  __ _ 
+ / / / / _ \/ // / , _/ _ \/ _ \/  ' \
+/_/ /_/_//_/\_, /_/|_|\___/\___/_/_/_/
+           /___/                      
+* 
+* @author Michael Holmes
+* @description A tiny 3d room component. The Simple 
+*              principle is 'only send what you need'
+*              
+* 
+*/
+
 import * as THREE from "three";
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls"
 import React, { useState, ChangeEvent } from "react";
@@ -19,7 +34,7 @@ type Position = {
 
 type Geometry = {
   type: string,
-  position: Position
+  vertices: Position[]
 }
 
 
@@ -28,33 +43,80 @@ type Artifact = {
   geometry: Geometry,
   properties: {
     group:string,
+    label:string,
     interactive:boolean,
     colour:number,
     size:number
   }
 }
 
+export type pushPointZParams = {
+  x: number,
+  y: number,
+  z: number,
+  group: string | undefined,
+  label: string | undefined,
+  colour: number | undefined,
+  interactive:boolean | undefined,
+  size: number | undefined
+}
+
+export type pushLinestringZParams = {
+  x:number[],
+  y:number[],
+  z:number[],
+  group: string | undefined,
+  label: string | undefined,
+  colour: number | undefined,
+  interactive:boolean | undefined
+}
+
+
 export function ArtifactBundler() {
   let _bundle:Artifact[] = [];
 
   return {
-    pushPoint: (pos:Position, group:string, colour:number|undefined, interactive:boolean|undefined, size:number|undefined) => {
-      let col:number = colour || 0x00ff00;
-      let inter:boolean = interactive || false;
+    pushPointZ: (x:number, y:number, z:number, group?:string, label?:string, colour?:number, interactive?:boolean, size?:number) => {
+      let pos:Position = {
+        x: x,
+        y: y,
+        z: z
+      }
       let p:Artifact = {
         type: "Feature",
         geometry: {
-          position: pos,
+          vertices: [pos],
           type: "PointZ"
         },
         properties: {
-          group: group,
-          colour: col,
-          interactive:inter,
-          size: size || 1
+          group: group || "undefined",
+          colour: colour || 0x00ff00,
+          interactive:interactive || false,
+          size: size || 0.3,
+          label: label || ""
         }
       }
       _bundle.push(p);
+  },
+  pushLinestringZ: (x:number[], y:number[], z:number[], group?:string, label?:string, colour?:number, interactive?:boolean) => {
+    let pos:Position[] = [];
+    for (var i = 0; i < x.length; i++)
+      pos.push({x: x[i], y: y[i], z: z[i]});
+    let l:Artifact = {
+      type: "Feature",
+      geometry: {
+        vertices: pos,
+        type: "LinestringZ"
+      },
+      properties: {
+        group:group || "undefined",
+        colour:colour || 0x00ff00,
+        interactive:interactive || false,
+        label:label || "",
+        size: -1
+      }
+    }
+    _bundle.push(l);
   },
   stringyfyBundle: () => {
     return JSON.stringify(_bundle);
@@ -70,7 +132,7 @@ function parseArtifacts(artifacts:string) {
   return a;
 }
 
-function sendArtifactsToRoom(artis:Artifact[], scene:THREE.Scene) {
+function sendArtifactsToObject(artis:Artifact[], object:THREE.Object3D) {
   for (var i = 0; i < artis.length; i++) {
     switch (artis[i].geometry.type) {
       case "PointZ":
@@ -78,14 +140,28 @@ function sendArtifactsToRoom(artis:Artifact[], scene:THREE.Scene) {
         var g = new THREE.Geometry();
         var m = new THREE.PointsMaterial({color:point.properties.colour, size:point.properties.size || 1});
         g.vertices.push(new THREE.Vector3(  
-          point.geometry.position.x,
-          point.geometry.position.y,
-          point.geometry.position.z));
+          point.geometry.vertices[0].x,
+          point.geometry.vertices[0].y,
+          point.geometry.vertices[0].z));
         var p = new THREE.Points(g, m);
-        p.name = point.properties.group;
-        scene.add(p);
+        p.userData = point.properties;
+        object.add(p);
         break;
+      case "LinestringZ":
+          var line:Artifact = artis[i];
+          var lineg = new THREE.Geometry();
+          var linem = new THREE.LineBasicMaterial({color:line.properties.colour});
+          for (var j = 0; j < line.geometry.vertices.length; j++) {
+            var v:Position = line.geometry.vertices[j];
+            lineg.vertices.push(new THREE.Vector3(v.x, v.y, v.z));
+          }
+          var line3 = new THREE.Line(lineg,linem);
+          line3.userData = line.properties;
+          object.add(line3);
+          break;
     }
+    
+
   }
 }
 
@@ -96,13 +172,16 @@ export const TinyRoom = ({artifacts, title, width, height, background}:TinyRoomP
   scene.background = new THREE.Color( background );
   
   var camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-  var renderer = new THREE.WebGLRenderer();
+  var renderer = new THREE.WebGLRenderer({antialias:true});
   var controls = new OrbitControls(camera,renderer.domElement);
+  var canvas = document.createElement('canvas');
+  var context = canvas.getContext('2d');
+  
 
   var grid = new GridHelper(50,20,0xff0000);
   scene.add(grid);
 
-  sendArtifactsToRoom(parseArtifacts(artifacts), scene);
+  sendArtifactsToObject(parseArtifacts(artifacts), grid);
 
 
   renderer.setSize( width, height );
